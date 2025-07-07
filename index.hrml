@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReorderFlow Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Replace with your actual Supabase credentials
+        const SUPABASE_URL = 'https://esxnvihzvytfapywcyss.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzeG52aWh6dnl0ZmFweXdjeXNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MjMwODQsImV4cCI6MjA2NzQ5OTA4NH0.9pCOPjOGudjDI9_oIdo64VMPCZhGezLZ8YVGcEFvFcQ';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Auth Context
+        const AuthContext = React.createContext();
+
+        function AuthProvider({ children }) {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                // Get initial session
+                supabase.auth.getSession().then(({ data: { session } }) => {
+                    setUser(session?.user ?? null);
+                    setLoading(false);
+                });
+
+                // Listen for auth changes
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(
+                    async (event, session) => {
+                        setUser(session?.user ?? null);
+                        setLoading(false);
+                    }
+                );
+
+                return () => subscription.unsubscribe();
+            }, []);
+
+            return (
+                <AuthContext.Provider value={{ user, loading }}>
+                    {children}
+                </AuthContext.Provider>
+            );
+        }
+
+        // Login Component
+        function Login() {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState('');
+            const [isSignUp, setIsSignUp] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setError('');
+
+                try {
+                    if (isSignUp) {
+                        const { error } = await supabase.auth.signUp({
+                            email,
+                            password,
+                        });
+                        if (error) throw error;
+                        alert('Check your email for the confirmation link!');
+                    } else {
+                        const { error } = await supabase.auth.signInWithPassword({
+                            email,
+                            password,
+                        });
+                        if (error) throw error;
+                    }
+                } catch (error) {
+                    setError(error.message);
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                    <div className="max-w-md w-full space-y-8">
+                        <div>
+                            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                                {isSignUp ? 'Create your account' : 'Sign in to ReorderFlow'}
+                            </h2>
+                        </div>
+                        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                            <div className="rounded-md shadow-sm -space-y-px">
+                                <div>
+                                    <input
+                                        type="email"
+                                        required
+                                        className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                        placeholder="Email address"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <input
+                                        type="password"
+                                        required
+                                        className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                        placeholder="Password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="text-red-600 text-sm text-center">{error}</div>
+                            )}
+
+                            <div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                                >
+                                    {loading ? <div className="spinner"></div> : (isSignUp ? 'Sign up' : 'Sign in')}
+                                </button>
+                            </div>
+
+                            <div className="text-center">
+                                <button
+                                    type="button"
+                                    className="text-blue-600 hover:text-blue-500"
+                                    onClick={() => setIsSignUp(!isSignUp)}
+                                >
+                                    {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // Dashboard Layout
+        function DashboardLayout({ children }) {
+            const { user } = React.useContext(AuthContext);
+            const [activeTab, setActiveTab] = useState('dashboard');
+
+            const signOut = async () => {
+                await supabase.auth.signOut();
+            };
+
+            const tabs = [
+                { id: 'dashboard', name: 'Dashboard', icon: '📊' },
+                { id: 'contacts', name: 'Contacts', icon: '👥' },
+                { id: 'products', name: 'Products', icon: '📦' },
+                { id: 'reminders', name: 'Reminders', icon: '⏰' },
+                { id: 'settings', name: 'Settings', icon: '⚙️' },
+            ];
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    {/* Navigation */}
+                    <nav className="bg-white shadow-sm border-b">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16">
+                                <div className="flex">
+                                    <div className="flex-shrink-0 flex items-center">
+                                        <h1 className="text-xl font-bold text-blue-600">ReorderFlow</h1>
+                                    </div>
+                                    <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+                                        {tabs.map((tab) => (
+                                            <button
+                                                key={tab.id}
+                                                onClick={() => setActiveTab(tab.id)}
+                                                className={`${
+                                                    activeTab === tab.id
+                                                        ? 'border-blue-500 text-gray-900'
+                                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                                } whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm inline-flex items-center`}
+                                            >
+                                                <span className="mr-2">{tab.icon}</span>
+                                                {tab.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="flex items-center">
+                                    <span className="text-gray-700 mr-4">Welcome, {user?.email}</span>
+                                    <button
+                                        onClick={signOut}
+                                        className="bg-gray-100 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-200"
+                                    >
+                                        Sign out
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Main content */}
+                    <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                        {React.cloneElement(children, { activeTab })}
+                    </main>
+                </div>
+            );
+        }
+
+        // Dashboard Overview
+        function DashboardOverview() {
+            const [stats, setStats] = useState({
+                totalContacts: 0,
+                totalProducts: 0,
+                pendingReminders: 0,
+                sentToday: 0
+            });
+            const [upcomingReminders, setUpcomingReminders] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                loadDashboardData();
+            }, []);
+
+            const loadDashboardData = async () => {
+                try {
+                    // Get counts
+                    const [contacts, products, reminders] = await Promise.all([
+                        supabase.from('contacts').select('*', { count: 'exact', head: true }),
+                        supabase.from('products').select('*', { count: 'exact', head: true }),
+                        supabase.from('reminders').select('*', { count: 'exact', head: true }).eq('status', 'pending')
+                    ]);
+
+                    // Get upcoming reminders
+                    const { data: upcoming } = await supabase
+                        .from('reminder_dashboard')
+                        .select('*')
+                        .eq('status', 'pending')
+                        .gte('scheduled_date', new Date().toISOString().split('T')[0])
+                        .order('scheduled_date')
+                        .limit(5);
+
+                    setStats({
+                        totalContacts: contacts.count || 0,
+                        totalProducts: products.count || 0,
+                        pendingReminders: reminders.count || 0,
+                        sentToday: 0 // TODO: Calculate from sent reminders today
+                    });
+
+                    setUpcomingReminders(upcoming || []);
+                } catch (error) {
+                    console.error('Error loading dashboard data:', error);
+                }
+                setLoading(false);
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-8"><div className="spinner"></div></div>;
+            }
+
+            return (
+                <div className="space-y-6">
+                    <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+
+                    {/* Stats Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div className="bg-white overflow-hidden shadow rounded-lg">
+                            <div className="p-5">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <span className="text-2xl">👥</span>
+                                    </div>
+                                    <div className="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt className="text-sm font-medium text-gray-500 truncate">Total Contacts</dt>
+                                            <dd className="text-lg font-medium text-gray-900">{stats.totalContacts}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white overflow-hidden shadow rounded-lg">
+                            <div className="p-5">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <span className="text-2xl">📦</span>
+                                    </div>
+                                    <div className="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt className="text-sm font-medium text-gray-500 truncate">Products</dt>
+                                            <dd className="text-lg font-medium text-gray-900">{stats.totalProducts}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white overflow-hidden shadow rounded-lg">
+                            <div className="p-5">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <span className="text-2xl">⏰</span>
+                                    </div>
+                                    <div className="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt className="text-sm font-medium text-gray-500 truncate">Pending Reminders</dt>
+                                            <dd className="text-lg font-medium text-gray-900">{stats.pendingReminders}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white overflow-hidden shadow rounded-lg">
+                            <div className="p-5">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0">
+                                        <span className="text-2xl">📤</span>
+                                    </div>
+                                    <div className="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt className="text-sm font-medium text-gray-500 truncate">Sent Today</dt>
+                                            <dd className="text-lg font-medium text-gray-900">{stats.sentToday}</dd>
+                                        </dl>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Upcoming Reminders */}
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            <h3 className="text-lg leading-6 font-medium text-gray-900">Upcoming Reminders</h3>
+                            <div className="mt-5">
+                                {upcomingReminders.length === 0 ? (
+                                    <p className="text-gray-500">No upcoming reminders. Add some contacts and products to get started!</p>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {upcomingReminders.map((reminder) => (
+                                            <div key={reminder.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-900">
+                                                        {reminder.contact_name} - {reminder.product_name}
+                                                    </p>
+                                                    <p className="text-sm text-gray-500">
+                                                        {reminder.contact_company} • Last order: {reminder.last_order_date}
+                                                    </p>
+                                                </div>
+                                                <div className="text-sm text-gray-500">
+                                                    {reminder.scheduled_date}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Contacts Management
+        function ContactsTab() {
+            const [contacts, setContacts] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showAddForm, setShowAddForm] = useState(false);
+            const fileInputRef = useRef(null);
+
+            useEffect(() => {
+                loadContacts();
+            }, []);
+
+            const loadContacts = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('contacts')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw error;
+                    setContacts(data || []);
+                } catch (error) {
+                    console.error('Error loading contacts:', error);
+                }
+                setLoading(false);
+            };
+
+            const handleCSVImport = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const csv = e.target.result;
+                        const lines = csv.split('\n');
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                        
+                        const contactsToImport = [];
+                        for (let i = 1; i < lines.length; i++) {
+                            const values = lines[i].split(',');
+                            if (values.length < 2) continue;
+
+                            const contact = {
+                                name: values[headers.indexOf('name')] || values[0],
+                                email: values[headers.indexOf('email')] || values[1],
+                                phone: values[headers.indexOf('phone')] || values[2] || '',
+                                company: values[headers.indexOf('company')] || values[3] || '',
+                                role: values[headers.indexOf('role')] || values[4] || '',
+                            };
+
+                            if (contact.name && contact.email) {
+                                contactsToImport.push(contact);
+                            }
+                        }
+
+                        if (contactsToImport.length > 0) {
+                            const { error } = await supabase
+                                .from('contacts')
+                                .insert(contactsToImport);
+
+                            if (error) throw error;
+                            
+                            alert(`Imported ${contactsToImport.length} contacts successfully!`);
+                            loadContacts();
+                        }
+                    } catch (error) {
+                        console.error('Error importing CSV:', error);
+                        alert('Error importing CSV. Please check the format.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-8"><div className="spinner"></div></div>;
+            }
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
+                        <div className="flex space-x-3">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".csv"
+                                onChange={handleCSVImport}
+                                className="hidden"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current.click()}
+                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200"
+                            >
+                                Import CSV
+                            </button>
+                            <button
+                                onClick={() => setShowAddForm(!showAddForm)}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
+                            >
+                                Add Contact
+                            </button>
+                        </div>
+                    </div>
+
+                    {showAddForm && <AddContactForm onSuccess={() => { setShowAddForm(false); loadContacts(); }} />}
+
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            {contacts.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500">No contacts yet. Import a CSV or add contacts manually to get started!</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {contacts.map((contact) => (
+                                                <tr key={contact.id}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{contact.name}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{contact.email}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{contact.company}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{contact.phone}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {new Date(contact.created_at).toLocaleDateString()}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Add Contact Form
+        function AddContactForm({ onSuccess }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                email: '',
+                phone: '',
+                company: '',
+                role: '',
+                notes: ''
+            });
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+
+                try {
+                    const { error } = await supabase
+                        .from('contacts')
+                        .insert([formData]);
+
+                    if (error) throw error;
+                    onSuccess();
+                } catch (error) {
+                    console.error('Error adding contact:', error);
+                    alert('Error adding contact');
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Contact</h3>
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Name *</label>
+                            <input
+                                type="text"
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.name}
+                                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Email *</label>
+                            <input
+                                type="email"
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.email}
+                                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Phone</label>
+                            <input
+                                type="tel"
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.phone}
+                                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Company</label>
+                            <input
+                                type="text"
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.company}
+                                onChange={(e) => setFormData({...formData, company: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Role</label>
+                            <input
+                                type="text"
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.role}
+                                onChange={(e) => setFormData({...formData, role: e.target.value})}
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700">Notes</label>
+                            <textarea
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                rows="3"
+                                value={formData.notes}
+                                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                            />
+                        </div>
+                        <div className="md:col-span-2 flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={onSuccess}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loading ? 'Adding...' : 'Add Contact'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        }
+
+        // Products Tab
+        function ProductsTab() {
+            const [products, setProducts] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showAddForm, setShowAddForm] = useState(false);
+
+            useEffect(() => {
+                loadProducts();
+            }, []);
+
+            const loadProducts = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('products')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw error;
+                    setProducts(data || []);
+                } catch (error) {
+                    console.error('Error loading products:', error);
+                }
+                setLoading(false);
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-8"><div className="spinner"></div></div>;
+            }
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+                        <button
+                            onClick={() => setShowAddForm(!showAddForm)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
+                        >
+                            Add Product
+                        </button>
+                    </div>
+
+                    {showAddForm && <AddProductForm onSuccess={() => { setShowAddForm(false); loadProducts(); }} />}
+
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            {products.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500">No products yet. Add your first product to start tracking reorders!</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product Name</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reorder Cycle</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {products.map((product) => (
+                                                <tr key={product.id}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.sku || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.default_reorder_days} days</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {new Date(product.created_at).toLocaleDateString()}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Add Product Form
+        function AddProductForm({ onSuccess }) {
+            const [formData, setFormData] = useState({
+                name: '',
+                sku: '',
+                default_reorder_days: 30,
+                description: ''
+            });
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+
+                try {
+                    const { error } = await supabase
+                        .from('products')
+                        .insert([formData]);
+
+                    if (error) throw error;
+                    onSuccess();
+                } catch (error) {
+                    console.error('Error adding product:', error);
+                    alert('Error adding product');
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Add New Product</h3>
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Product Name *</label>
+                            <input
+                                type="text"
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.name}
+                                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">SKU</label>
+                            <input
+                                type="text"
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.sku}
+                                onChange={(e) => setFormData({...formData, sku: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Default Reorder Days *</label>
+                            <input
+                                type="number"
+                                required
+                                min="1"
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.default_reorder_days}
+                                onChange={(e) => setFormData({...formData, default_reorder_days: parseInt(e.target.value)})}
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700">Description</label>
+                            <textarea
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                rows="3"
+                                value={formData.description}
+                                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                            />
+                        </div>
+                        <div className="md:col-span-2 flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={onSuccess}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loading ? 'Adding...' : 'Add Product'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        }
+
+        // Reminders Tab
+        function RemindersTab() {
+            const [reminders, setReminders] = useState([]);
+            const [contacts, setContacts] = useState([]);
+            const [products, setProducts] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showCreateForm, setShowCreateForm] = useState(false);
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    const [remindersData, contactsData, productsData] = await Promise.all([
+                        supabase.from('reminder_dashboard').select('*').order('scheduled_date'),
+                        supabase.from('contacts').select('*'),
+                        supabase.from('products').select('*')
+                    ]);
+
+                    setReminders(remindersData.data || []);
+                    setContacts(contactsData.data || []);
+                    setProducts(productsData.data || []);
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                }
+                setLoading(false);
+            };
+
+            const sendReminder = async (reminderId) => {
+                try {
+                    // TODO: Integrate with SendGrid/Twilio
+                    const { error } = await supabase
+                        .from('reminders')
+                        .update({ 
+                            status: 'sent', 
+                            sent_date: new Date().toISOString() 
+                        })
+                        .eq('id', reminderId);
+
+                    if (error) throw error;
+                    
+                    alert('Reminder sent! (Integration with email/SMS coming next)');
+                    loadData();
+                } catch (error) {
+                    console.error('Error sending reminder:', error);
+                    alert('Error sending reminder');
+                }
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-8"><div className="spinner"></div></div>;
+            }
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl font-bold text-gray-900">Reminders</h1>
+                        <button
+                            onClick={() => setShowCreateForm(!showCreateForm)}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
+                        >
+                            Create Reminder
+                        </button>
+                    </div>
+
+                    {showCreateForm && (
+                        <CreateReminderForm 
+                            contacts={contacts}
+                            products={products}
+                            onSuccess={() => { setShowCreateForm(false); loadData(); }} 
+                        />
+                    )}
+
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            {reminders.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500">No reminders yet. Create your first reminder to start automating follow-ups!</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {reminders.map((reminder) => (
+                                        <div key={reminder.id} className="border border-gray-200 rounded-lg p-4">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center space-x-2">
+                                                        <h4 className="text-lg font-medium text-gray-900">
+                                                            {reminder.contact_name} - {reminder.product_name}
+                                                        </h4>
+                                                        <span className={`px-2 py-1 text-xs rounded-full ${
+                                                            reminder.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                            reminder.status === 'sent' ? 'bg-blue-100 text-blue-800' :
+                                                            'bg-green-100 text-green-800'
+                                                        }`}>
+                                                            {reminder.status}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-500 mt-1">
+                                                        {reminder.contact_company} • {reminder.contact_email}
+                                                    </p>
+                                                    <p className="text-sm text-gray-500">
+                                                        Scheduled: {reminder.scheduled_date} • Last order: {reminder.last_order_date}
+                                                    </p>
+                                                </div>
+                                                <div className="flex space-x-2">
+                                                    {reminder.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => sendReminder(reminder.id)}
+                                                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                                                        >
+                                                            Send Now
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Create Reminder Form
+        function CreateReminderForm({ contacts, products, onSuccess }) {
+            const [formData, setFormData] = useState({
+                contact_id: '',
+                product_id: '',
+                scheduled_date: '',
+                method: 'email'
+            });
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+
+                try {
+                    // First create an order record
+                    const { data: orderData, error: orderError } = await supabase
+                        .from('orders')
+                        .insert([{
+                            contact_id: formData.contact_id,
+                            product_id: formData.product_id,
+                            order_date: new Date().toISOString().split('T')[0],
+                            quantity: 1,
+                            next_reorder_date: formData.scheduled_date
+                        }])
+                        .select()
+                        .single();
+
+                    if (orderError) throw orderError;
+
+                    // Then create the reminder
+                    const { error: reminderError } = await supabase
+                        .from('reminders')
+                        .insert([{
+                            order_id: orderData.id,
+                            contact_id: formData.contact_id,
+                            scheduled_date: formData.scheduled_date,
+                            method: formData.method
+                        }]);
+
+                    if (reminderError) throw reminderError;
+                    
+                    onSuccess();
+                } catch (error) {
+                    console.error('Error creating reminder:', error);
+                    alert('Error creating reminder');
+                }
+                setLoading(false);
+            };
+
+            return (
+                <div className="bg-white shadow rounded-lg p-6">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Reminder</h3>
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Contact *</label>
+                            <select
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.contact_id}
+                                onChange={(e) => setFormData({...formData, contact_id: e.target.value})}
+                            >
+                                <option value="">Select a contact</option>
+                                {contacts.map((contact) => (
+                                    <option key={contact.id} value={contact.id}>
+                                        {contact.name} - {contact.company}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Product *</label>
+                            <select
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.product_id}
+                                onChange={(e) => setFormData({...formData, product_id: e.target.value})}
+                            >
+                                <option value="">Select a product</option>
+                                {products.map((product) => (
+                                    <option key={product.id} value={product.id}>
+                                        {product.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Scheduled Date *</label>
+                            <input
+                                type="date"
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.scheduled_date}
+                                onChange={(e) => setFormData({...formData, scheduled_date: e.target.value})}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">Method *</label>
+                            <select
+                                required
+                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                value={formData.method}
+                                onChange={(e) => setFormData({...formData, method: e.target.value})}
+                            >
+                                <option value="email">Email</option>
+                                <option value="sms">SMS</option>
+                                <option value="call">AI Voice Call</option>
+                            </select>
+                        </div>
+                        <div className="md:col-span-2 flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={onSuccess}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loading ? 'Creating...' : 'Create Reminder'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        }
+
+        // Settings Tab
+        function SettingsTab() {
+            const { user } = React.useContext(AuthContext);
+            const [profile, setProfile] = useState({
+                company_name: '',
+                phone: '',
+                time_zone: 'America/New_York'
+            });
+            const [loading, setLoading] = useState(true);
+            const [saving, setSaving] = useState(false);
+
+            useEffect(() => {
+                loadProfile();
+            }, []);
+
+            const loadProfile = async () => {
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+
+                    if (error) throw error;
+                    
+                    if (data) {
+                        setProfile({
+                            company_name: data.company_name || '',
+                            phone: data.phone || '',
+                            time_zone: data.time_zone || 'America/New_York'
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading profile:', error);
+                }
+                setLoading(false);
+            };
+
+            const saveProfile = async (e) => {
+                e.preventDefault();
+                setSaving(true);
+
+                try {
+                    const { error } = await supabase
+                        .from('users')
+                        .upsert({ 
+                            id: user.id, 
+                            email: user.email, 
+                            ...profile 
+                        });
+
+                    if (error) throw error;
+                    alert('Profile updated successfully!');
+                } catch (error) {
+                    console.error('Error saving profile:', error);
+                    alert('Error saving profile');
+                }
+                setSaving(false);
+            };
+
+            if (loading) {
+                return <div className="flex justify-center py-8"><div className="spinner"></div></div>;
+            }
+
+            return (
+                <div className="space-y-6">
+                    <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Profile Settings</h3>
+                            <form onSubmit={saveProfile} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                                    <input
+                                        type="email"
+                                        disabled
+                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
+                                        value={user.email}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Company Name</label>
+                                    <input
+                                        type="text"
+                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                        value={profile.company_name}
+                                        onChange={(e) => setProfile({...profile, company_name: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                                    <input
+                                        type="tel"
+                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                        value={profile.phone}
+                                        onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">Time Zone</label>
+                                    <select
+                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                        value={profile.time_zone}
+                                        onChange={(e) => setProfile({...profile, time_zone: e.target.value})}
+                                    >
+                                        <option value="America/New_York">Eastern Time</option>
+                                        <option value="America/Chicago">Central Time</option>
+                                        <option value="America/Denver">Mountain Time</option>
+                                        <option value="America/Los_Angeles">Pacific Time</option>
+                                    </select>
+                                </div>
+                                <div className="flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                        {saving ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div className="bg-white shadow rounded-lg">
+                        <div className="px-4 py-5 sm:p-6">
+                            <h3 className="text-lg font-medium text-gray-900 mb-4">Integration Settings</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h4 className="font-medium">Email (SendGrid)</h4>
+                                        <p className="text-sm text-gray-500">Send automated email reminders</p>
+                                    </div>
+                                    <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                        Coming Soon
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h4 className="font-medium">SMS (Twilio)</h4>
+                                        <p className="text-sm text-gray-500">Send automated SMS reminders</p>
+                                    </div>
+                                    <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                        Coming Soon
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h4 className="font-medium">AI Voice Calls</h4>
+                                        <p className="text-sm text-gray-500">Automated phone follow-ups</p>
+                                    </div>
+                                    <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full">
+                                        Coming Soon
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const { user, loading } = React.useContext(AuthContext);
+            const [activeTab, setActiveTab] = useState('dashboard');
+
+            if (loading) {
+                return (
+                    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="spinner mb-4"></div>
+                            <p className="text-gray-500">Loading...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return <Login />;
+            }
+
+            const renderContent = () => {
+                switch (activeTab) {
+                    case 'dashboard':
+                        return <DashboardOverview />;
+                    case 'contacts':
+                        return <ContactsTab />;
+                    case 'products':
+                        return <ProductsTab />;
+                    case 'reminders':
+                        return <RemindersTab />;
+                    case 'settings':
+                        return <SettingsTab />;
+                    default:
+                        return <DashboardOverview />;
+                }
+            };
+
+            return (
+                <DashboardLayout activeTab={activeTab} setActiveTab={setActiveTab}>
+                    {renderContent()}
+                </DashboardLayout>
+            );
+        }
+
+        // Setup Instructions Component
+        function SetupInstructions() {
+            return (
+                <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+                    <div className="max-w-2xl w-full bg-white rounded-lg shadow-lg p-8">
+                        <h1 className="text-2xl font-bold text-gray-900 mb-6">🚀 Almost Ready!</h1>
+                        <div className="space-y-4 text-sm">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h3 className="font-semibold text-blue-900 mb-2">Step 1: Add Your Supabase Credentials</h3>
+                                <p className="text-blue-700 mb-3">Replace the placeholder values in the code with your actual Supabase credentials:</p>
+                                <div className="bg-blue-100 rounded p-3 font-mono text-xs">
+                                    <div>const SUPABASE_URL = 'https://esxnvihzvytfapywcyss.supabase.co';</div>
+                                    <div>const SUPABASE_ANON_KEY = 'your_public_api_key_here';</div>
+                                </div>
+                            </div>
+                            
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <h3 className="font-semibold text-green-900 mb-2">Step 2: Test the Application</h3>
+                                <p className="text-green-700">Once configured, you can:</p>
+                                <ul className="list-disc list-inside text-green-700 mt-2 space-y-1">
+                                    <li>Create an account and sign in</li>
+                                    <li>Import contacts via CSV</li>
+                                    <li>Add products with reorder cycles</li>
+                                    <li>Create and manage reminders</li>
+                                </ul>
+                            </div>
+
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                <h3 className="font-semibold text-yellow-900 mb-2">Step 3: Deploy & Integrate</h3>
+                                <p className="text-yellow-700">Next we'll add:</p>
+                                <ul className="list-disc list-inside text-yellow-700 mt-2 space-y-1">
+                                    <li>SendGrid for email automation</li>
+                                    <li>Twilio for SMS reminders</li>
+                                    <li>AI voice calling integration</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Check if credentials are configured
+        const isConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL_HERE' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY_HERE';
+
+        // Render the app
+        ReactDOM.render(
+            <AuthProvider>
+                {isConfigured ? <App /> : <SetupInstructions />}
+            </AuthProvider>,
+            document.getElementById('root')
+        );
+    </script>
+</body>
+</html>
